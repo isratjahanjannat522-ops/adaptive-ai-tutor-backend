@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const API_BASE = "http://127.0.0.1:8000/api/v1";
-
+const API_BASE = "https://adaptive-ai-tutor-backend-6i4r.onrender.com/api/v1";
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
