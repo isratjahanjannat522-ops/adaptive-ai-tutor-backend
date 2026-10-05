@@ -29,7 +29,6 @@ export const getMe = () => api.get("/auth/me");
 // Student model
 export const getStudentModel = () => api.get("/student-model");
 export const submitAssessment = (data) => api.post("/student-model/assessment", data);
-// Fast recommendation for Dashboard (no LLM)
 export const getRecommendation = () => api.get("/student-model/recommendation");
 
 // Course & Lessons
@@ -46,6 +45,10 @@ export const getQuizResults = () => api.get("/progress/quiz-results");
 
 // Admin
 export const getStudents = () => api.get("/admin/students");
+export const getStudentDetail = (userId) => api.get(`/admin/students/${userId}`);
+export const exportAllStudentsCsv = () =>
+  api.get("/admin/export/csv", { responseType: "blob" });
+export const createTeacher = (data) => api.post("/admin/create-teacher", data);
 
 // Evaluation
 export const getTestQuestions = () => api.get("/evaluation/test-questions");
@@ -66,6 +69,3 @@ export const getDailyGoal = () => api.get("/goals/daily");
 export const getReviewItems = () => api.get("/goals/review");
 
 export default api;
-
-export const createTeacher = (data) =>
-  api.post("/admin/create-teacher", data);
