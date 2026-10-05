@@ -18,7 +18,7 @@ Adaptive AI Tutor is **not just a chatbot**. It tracks how each student is learn
 
 ---
 
-## 🔄 Core Adaptive Loop
+## Core Adaptive Loop
 
 ```mermaid
 flowchart TD
