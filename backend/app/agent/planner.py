@@ -14,46 +14,38 @@ class StudentState:
 
 class AdaptivePlanner:
     """
-    Deterministic, explainable adaptive policy for the thesis.
-    Returns one of:
-      - verify_and_review
-      - review
+    Deterministic, explainable adaptive policy.
+    Returns only one of:
       - practice
       - teach
       - advance
-    """ 
+    """
 
     def choose(self, state: StudentState) -> str:
-        # High confidence but low demonstrated mastery → verification needed
-        if state.confidence_gap >= 20:
-            return "verify_and_review"
+        # 90+ recent score → unlock advance (next chapter option)
+        if state.recent_score is not None and state.recent_score >= 90:
+            return "advance"
 
-        # Low mastery → review fundamentals
-        if state.mastery < 50:
-            return "review"
-
-        # Weak recent performance → practice
-        if state.recent_score is not None and state.recent_score < 70:
+        # Low mastery or weak recent performance → practice
+        if state.mastery < 55 or (
+            state.recent_score is not None and state.recent_score < 70
+        ):
             return "practice"
 
-        # Strong mastery + strong recent score → advance
-        if (
-            state.mastery >= 85
-            and state.recent_score is not None
-            and state.recent_score >= 85
+        # Strong but not yet 90 → still allow advance if mastery is high
+        if state.mastery >= 85 and (
+            state.recent_score is None or state.recent_score >= 80
         ):
             return "advance"
 
-        # Default: teach at standard level
+        # Default
         return "teach"
 
 
 def action_to_difficulty(action: str) -> str:
     mapping = {
-        "review": "easy",
         "practice": "moderate",
         "teach": "standard",
         "advance": "challenging",
-        "verify_and_review": "easy_with_verification",
     }
     return mapping.get(action, "standard")
