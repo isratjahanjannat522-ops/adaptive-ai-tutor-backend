@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getMe,
   getStudentModel,
@@ -7,10 +7,12 @@ import {
   getRecommendation,
   getDailyGoal,
   getReviewItems,
+  getMyTests,
 } from "../services/api";
 import Navbar from "../components/Navbar";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [model, setModel] = useState(null);
   const [course, setCourse] = useState(null);
@@ -20,10 +22,27 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Force pre-test for students
+  useEffect(() => {
+    async function check() {
+      try {
+        const me = await getMe();
+        if (me.data.role !== "student") return;
+        const tests = await getMyTests();
+        const hasPreTest = tests.data.some((t) => t.test_type === "pre_test");
+        if (!hasPreTest) {
+          navigate("/evaluation", { replace: true });
+        }
+      } catch {
+        // ignore
+      }
+    }
+    check();
+  }, [navigate]);
+
   useEffect(() => {
     async function load() {
       try {
-        // All of these are DB-only (or cheap). No LLM on Dashboard.
         const [meRes, modelRes, courseRes, goalRes, reviewRes, recRes] =
           await Promise.all([
             getMe(),
@@ -33,13 +52,11 @@ export default function Dashboard() {
             getReviewItems(),
             getRecommendation(),
           ]);
-
         setUser(meRes.data);
         setModel(modelRes.data);
         setCourse(courseRes.data);
         setDailyGoal(goalRes.data);
         setReviewItems(reviewRes.data || []);
-
         if (recRes?.data) {
           setNextAction({
             lessonId: recRes.data.lesson_id,
