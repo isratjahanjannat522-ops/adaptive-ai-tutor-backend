@@ -105,11 +105,9 @@ export default function Dashboard() {
 
   const badgeClass = (action) => {
     const map = {
-      review: "badge-review",
       practice: "badge-practice",
       teach: "badge-teach",
       advance: "badge-advance",
-      verify_and_review: "badge-verify",
     };
     return map[action] || "badge-teach";
   };
@@ -117,6 +115,23 @@ export default function Dashboard() {
   const recommendedLessonPath = nextAction?.lessonId
     ? `/lesson/${nextAction.lessonId}`
     : "/lesson/1";
+
+  // Helper: find first lesson of the next chapter/module
+  const getNextChapterPath = () => {
+    if (!course?.modules || !nextAction?.lessonId) return null;
+
+    for (let i = 0; i < course.modules.length; i++) {
+      const mod = course.modules[i];
+      const found = mod.lessons?.some((l) => l.id === nextAction.lessonId);
+      if (found && i + 1 < course.modules.length) {
+        const nextLesson = course.modules[i + 1].lessons?.[0];
+        return nextLesson ? `/lesson/${nextLesson.id}` : null;
+      }
+    }
+    return null; // already on last chapter
+  };
+
+  const nextChapterPath = getNextChapterPath();
 
   return (
     <>
@@ -212,6 +227,7 @@ export default function Dashboard() {
                 Why: {nextAction.reason}
               </p>
             )}
+
             <Link
               to={recommendedLessonPath}
               className="btn-primary"
@@ -219,6 +235,22 @@ export default function Dashboard() {
             >
               Start / Continue Lesson
             </Link>
+
+            {/* Show "Go to Next Chapter" only when action is advance + next chapter exists */}
+            {nextAction.action === "advance" && nextChapterPath && (
+              <div style={{ marginTop: "1rem" }}>
+                <p style={{ color: "var(--success)", marginBottom: "0.5rem" }}>
+                  Great job! You scored 90+. You can move to the next chapter.
+                </p>
+                <Link
+                  to={nextChapterPath}
+                  className="btn-primary"
+                  style={{ display: "inline-block" }}
+                >
+                  Go to Next Chapter →
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
