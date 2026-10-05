@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { login, getMe } from "../services/api";
+import { login, getMe, getMyTests } from "../services/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -19,11 +19,29 @@ export default function Login() {
       localStorage.setItem("refresh_token", res.data.refresh_token);
 
       const me = await getMe();
+
+      // Teachers / admins → teacher dashboard
       if (me.data.role === "teacher" || me.data.role === "admin") {
         navigate("/admin");
-      } else {
-        navigate("/dashboard");
+        return;
       }
+
+      // Students: if they never took the pre-test → send them there
+      try {
+        const tests = await getMyTests();
+        const hasPreTest = tests.data.some(
+          (t) => t.test_type === "pre_test"
+        );
+
+        if (!hasPreTest) {
+          navigate("/evaluation"); // change if your route is different
+          return;
+        }
+      } catch {
+        // if getMyTests fails, still let them into the app
+      }
+
+      navigate("/dashboard");
     } catch (err) {
       setError(
         err.response?.data?.detail || "Login failed. Check your credentials."
