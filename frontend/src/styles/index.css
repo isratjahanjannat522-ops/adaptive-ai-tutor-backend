@@ -396,3 +396,107 @@ h1 {
 h2 {
   font-size: 1.25rem;
 }
+/* ===== Mobile responsive navbar ===== */
+
+.navbar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.hamburger {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 1.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.hamburger:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Desktop – keep current look */
+@media (min-width: 769px) {
+  .navbar {
+    flex-direction: row;
+  }
+
+  .navbar-top {
+    width: auto;
+  }
+
+  .navbar-links {
+    display: flex;
+  }
+
+  .hamburger {
+    display: none;
+  }
+}
+
+/* Mobile – collapse menu */
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.75rem 1rem;
+  }
+
+  .hamburger {
+    display: block;
+  }
+
+  .navbar-links {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.75rem;
+  }
+
+  .navbar-links.open {
+    display: flex;
+  }
+
+  .navbar-links a,
+  .navbar-links .theme-toggle,
+  .navbar-links .btn-secondary {
+    width: 100%;
+    text-align: left;
+    padding: 0.7rem 0.5rem;
+    border-radius: 8px;
+  }
+
+  .navbar-links a:hover,
+  .navbar-links a.active {
+    background: var(--surface-2);
+  }
+
+  .container {
+    padding: 1.25rem 1rem 2.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  h1 {
+    font-size: 1.35rem !important;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 400px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

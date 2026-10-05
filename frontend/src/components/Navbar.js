@@ -8,16 +8,13 @@ function getInitialTheme() {
   return "light";
 }
 
-/**
- * Optional prop: recommendedLessonId — when provided (e.g. from Dashboard),
- * "Lessons" navigates there instead of hardcoded /lesson/1.
- */
 export default function Navbar({ recommendedLessonId }) {
   const navigate = useNavigate();
   const location = useLocation();
   const token = localStorage.getItem("access_token");
   const [theme, setTheme] = useState(getInitialTheme);
   const [user, setUser] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false); // mobile menu
   const [lessonLink, setLessonLink] = useState(
     recommendedLessonId ? `/lesson/${recommendedLessonId}` : "/lesson/1"
   );
@@ -38,10 +35,7 @@ export default function Navbar({ recommendedLessonId }) {
     if (recommendedLessonId) {
       setLessonLink(`/lesson/${recommendedLessonId}`);
       try {
-        localStorage.setItem(
-          "recommended_lesson_id",
-          String(recommendedLessonId)
-        );
+        localStorage.setItem("recommended_lesson_id", String(recommendedLessonId));
       } catch (_) {}
     } else {
       try {
@@ -50,6 +44,11 @@ export default function Navbar({ recommendedLessonId }) {
       } catch (_) {}
     }
   }, [recommendedLessonId]);
+
+  // Close menu when route changes
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   const toggleTheme = () => {
     setTheme((t) => (t === "light" ? "dark" : "light"));
@@ -67,60 +66,63 @@ export default function Navbar({ recommendedLessonId }) {
   const isActive = (path) =>
     location.pathname === path || location.pathname.startsWith(path + "/");
 
-  const isTeacher =
-    user?.role === "teacher" || user?.role === "admin";
+  const isTeacher = user?.role === "teacher" || user?.role === "admin";
 
   return (
     <nav className="navbar">
-      <Link to={isTeacher ? "/admin" : "/dashboard"} className="navbar-brand">
-        Adaptive AI Tutor
-      </Link>
-      <div className="navbar-links">
+      <div className="navbar-top">
+        <Link
+          to={isTeacher ? "/admin" : "/dashboard"}
+          className="navbar-brand"
+        >
+          Adaptive AI Tutor
+        </Link>
+
+        {/* Hamburger button – only visible on mobile */}
+        <button
+          type="button"
+          className="hamburger"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Toggle menu"
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
+      </div>
+
+      <div className={`navbar-links ${menuOpen ? "open" : ""}`}>
         {!isTeacher && (
           <>
-            <Link
-              to="/dashboard"
-              className={isActive("/dashboard") ? "active" : ""}
-            >
+            <Link to="/dashboard" className={isActive("/dashboard") ? "active" : ""}>
               Dashboard
             </Link>
-            <Link
-              to={lessonLink}
-              className={isActive("/lesson") ? "active" : ""}
-            >
+            <Link to={lessonLink} className={isActive("/lesson") ? "active" : ""}>
               Lessons
             </Link>
             <Link to="/chat" className={isActive("/chat") ? "active" : ""}>
               Chat
             </Link>
-            <Link
-              to="/exercises"
-              className={isActive("/exercises") ? "active" : ""}
-            >
+            <Link to="/exercises" className={isActive("/exercises") ? "active" : ""}>
               Exercises
             </Link>
-            <Link
-              to="/progress"
-              className={isActive("/progress") ? "active" : ""}
-            >
+            <Link to="/progress" className={isActive("/progress") ? "active" : ""}>
               Progress
             </Link>
-            <Link
-              to="/evaluation"
-              className={isActive("/evaluation") ? "active" : ""}
-            >
+            <Link to="/evaluation" className={isActive("/evaluation") ? "active" : ""}>
               Evaluation
             </Link>
           </>
         )}
+
         {isTeacher && (
           <Link to="/admin" className={isActive("/admin") ? "active" : ""}>
             Teacher
           </Link>
         )}
+
         <button type="button" className="theme-toggle" onClick={toggleTheme}>
           {theme === "light" ? "Dark" : "Light"}
         </button>
+
         <button
           type="button"
           className="btn-secondary"
