@@ -150,4 +150,3 @@ Only **three actions** are used:
 For academic use only.
 ```
 
-This version looks much cleaner on GitHub. Just replace your current README with this.
