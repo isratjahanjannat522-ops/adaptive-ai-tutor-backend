@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { getTestQuestions, submitTest, getMyTests, exportCsv } from "../services/api";
 import Navbar from "../components/Navbar";
+
+const TIME_LIMIT_SECONDS = 10 * 60; // 10 minutes
 
 export default function Evaluation() {
   const [questions, setQuestions] = useState([]);
@@ -11,9 +13,69 @@ export default function Evaluation() {
   const [result, setResult] = useState(null);
   const [pastTests, setPastTests] = useState([]);
   const [error, setError] = useState("");
-  const [startTime] = useState(Date.now());
   const [meta, setMeta] = useState({ knowledge_count: 14, likert_count: 6 });
 
+  // Timer state
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_SECONDS);
+  const [startTime, setStartTime] = useState(null);
+  const timerRef = useRef(null);
+  const hasSubmittedRef = useRef(false);
+
+  // Format mm:ss
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // Submit function (used by button + auto-submit)
+  const doSubmit = useCallback(
+    async (force = false) => {
+      if (hasSubmittedRef.current || submitting) return;
+      hasSubmittedRef.current = true;
+
+      if (!force && Object.keys(answers).length < questions.length) {
+        setError("Please answer all questions.");
+        hasSubmittedRef.current = false;
+        return;
+      }
+
+      setSubmitting(true);
+      setError("");
+
+      // Clear timer
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      try {
+        const spent = startTime
+          ? Math.round((Date.now() - startTime) / 1000)
+          : TIME_LIMIT_SECONDS - timeLeft;
+
+        const payload = {
+          test_type: testType,
+          answers: Object.entries(answers).map(([qid, idx]) => ({
+            question_id: parseInt(qid),
+            selected_index: idx,
+          })),
+          time_spent_seconds: Math.min(spent, TIME_LIMIT_SECONDS),
+        };
+
+        const res = await submitTest(payload);
+        setResult(res.data);
+
+        const tRes = await getMyTests();
+        setPastTests(tRes.data || []);
+      } catch (err) {
+        setError(err.response?.data?.detail || "Failed to submit test.");
+        hasSubmittedRef.current = false;
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [answers, questions, testType, startTime, timeLeft, submitting]
+  );
+
+  // Load questions
   useEffect(() => {
     async function load() {
       try {
@@ -24,6 +86,10 @@ export default function Evaluation() {
           likert_count: qRes.data.likert_count ?? 6,
         });
         setPastTests(tRes.data || []);
+
+        // Start the 10-minute timer only after questions load
+        setStartTime(Date.now());
+        setTimeLeft(TIME_LIMIT_SECONDS);
       } catch (err) {
         setError("Failed to load evaluation data.");
       } finally {
@@ -33,37 +99,33 @@ export default function Evaluation() {
     load();
   }, []);
 
+  // Countdown timer
+  useEffect(() => {
+    if (!startTime || result) return;
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          // Auto-submit when time runs out
+          doSubmit(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [startTime, result, doSubmit]);
+
   const handleSelect = (qid, idx) => {
-    if (result) return;
+    if (result || timeLeft === 0) return;
     setAnswers((prev) => ({ ...prev, [qid]: idx }));
   };
 
-  const handleSubmit = async () => {
-    if (Object.keys(answers).length < questions.length) {
-      setError("Please answer all questions.");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      const payload = {
-        test_type: testType,
-        answers: Object.entries(answers).map(([qid, idx]) => ({
-          question_id: parseInt(qid),
-          selected_index: idx,
-        })),
-        time_spent_seconds: Math.round((Date.now() - startTime) / 1000),
-      };
-      const res = await submitTest(payload);
-      setResult(res.data);
-      const tRes = await getMyTests();
-      setPastTests(tRes.data || []);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to submit test.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const handleSubmit = () => doSubmit(false);
 
   const handleExport = async () => {
     try {
@@ -95,6 +157,10 @@ export default function Evaluation() {
   const knowledgeQs = questions.filter((q) => q.type === "mcq" || !q.type);
   const likertQs = questions.filter((q) => q.type === "likert");
 
+  // Timer color
+  const timerColor =
+    timeLeft <= 60 ? "#ef4444" : timeLeft <= 180 ? "#f59e0b" : "var(--primary)";
+
   return (
     <>
       <Navbar />
@@ -104,6 +170,7 @@ export default function Evaluation() {
         </h1>
         <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem" }}>
           Same test before and after using the tutor so you can measure change.
+          You have <strong>10 minutes</strong>.
         </p>
 
         {error && (
@@ -114,7 +181,9 @@ export default function Evaluation() {
 
         {pastTests.length > 0 && (
           <div className="card" style={{ marginBottom: "1.5rem" }}>
-            <h2 style={{ marginBottom: "0.75rem", fontSize: "1.15rem" }}>Previous results</h2>
+            <h2 style={{ marginBottom: "0.75rem", fontSize: "1.15rem" }}>
+              Previous results
+            </h2>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               {pastTests.map((t, i) => (
                 <div key={i} className="stat-card" style={{ minWidth: 140 }}>
@@ -144,28 +213,56 @@ export default function Evaluation() {
 
         {!result ? (
           <div className="card">
+            {/* Sticky timer bar */}
             <div
               style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+                background: "var(--card-bg, #fff)",
+                padding: "0.75rem 0",
                 marginBottom: "1.25rem",
+                borderBottom: "1px solid var(--border, #e5e7eb)",
                 display: "flex",
-                gap: "1rem",
+                justifyContent: "space-between",
                 alignItems: "center",
                 flexWrap: "wrap",
+                gap: "0.75rem",
               }}
             >
-              <label style={{ fontWeight: 600 }}>Test type:</label>
-              <select
-                className="input"
-                style={{ width: "auto" }}
-                value={testType}
-                onChange={(e) => setTestType(e.target.value)}
+              <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+                <label style={{ fontWeight: 600 }}>Test type:</label>
+                <select
+                  className="input"
+                  style={{ width: "auto" }}
+                  value={testType}
+                  onChange={(e) => setTestType(e.target.value)}
+                  disabled={timeLeft === 0}
+                >
+                  <option value="pre">Pre-test (before using the tutor)</option>
+                  <option value="post">Post-test (after using the tutor)</option>
+                </select>
+              </div>
+
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  fontWeight: 700,
+                  color: timerColor,
+                  fontVariantNumeric: "tabular-nums",
+                }}
               >
-                <option value="pre">Pre-test (before using the tutor)</option>
-                <option value="post">Post-test (after using the tutor)</option>
-              </select>
+                ⏱ {formatTime(timeLeft)}
+              </div>
             </div>
 
-            <p style={{ color: "var(--text-muted)", marginBottom: "1.25rem", fontSize: "0.95rem" }}>
+            <p
+              style={{
+                color: "var(--text-muted)",
+                marginBottom: "1.25rem",
+                fontSize: "0.95rem",
+              }}
+            >
               Answer all {questions.length} questions. First {meta.knowledge_count} are
               multiple choice. Last {meta.likert_count} ask how much you agree.
             </p>
@@ -190,9 +287,12 @@ export default function Evaluation() {
                     {q.options.map((opt, idx) => (
                       <button
                         key={idx}
-                        className={`quiz-option ${answers[q.id] === idx ? "selected" : ""}`}
+                        className={`quiz-option ${
+                          answers[q.id] === idx ? "selected" : ""
+                        }`}
                         onClick={() => handleSelect(q.id, idx)}
                         style={{ textAlign: "left" }}
+                        disabled={timeLeft === 0}
                       >
                         <span style={{ fontWeight: 600, marginRight: 6 }}>
                           {String.fromCharCode(97 + idx)}.
@@ -207,10 +307,22 @@ export default function Evaluation() {
 
             {likertQs.length > 0 && (
               <>
-                <h3 style={{ fontSize: "1.1rem", marginTop: "1.5rem", marginBottom: "1rem" }}>
+                <h3
+                  style={{
+                    fontSize: "1.1rem",
+                    marginTop: "1.5rem",
+                    marginBottom: "1rem",
+                  }}
+                >
                   Questions {knowledgeQs.length + 1}–{questions.length}
                 </h3>
-                <p style={{ color: "var(--text-muted)", marginBottom: "1rem", fontSize: "0.9rem" }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    marginBottom: "1rem",
+                    fontSize: "0.9rem",
+                  }}
+                >
                   How much do you agree? (1 = Strongly Disagree, 5 = Strongly Agree)
                 </p>
                 {likertQs.map((q, i) => (
@@ -218,11 +330,15 @@ export default function Evaluation() {
                     <p style={{ fontWeight: 600, marginBottom: "0.6rem" }}>
                       {knowledgeQs.length + i + 1}. {q.question}
                     </p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}
+                    >
                       {q.options.map((opt, idx) => (
                         <button
                           key={idx}
-                          className={`quiz-option ${answers[q.id] === idx ? "selected" : ""}`}
+                          className={`quiz-option ${
+                            answers[q.id] === idx ? "selected" : ""
+                          }`}
                           onClick={() => handleSelect(q.id, idx)}
                           style={{
                             flex: "1 1 120px",
@@ -231,8 +347,11 @@ export default function Evaluation() {
                             padding: "0.6rem 0.5rem",
                             fontSize: "0.85rem",
                           }}
+                          disabled={timeLeft === 0}
                         >
-                          <div style={{ fontWeight: 700, marginBottom: 2 }}>{idx + 1}</div>
+                          <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                            {idx + 1}
+                          </div>
                           {opt}
                         </button>
                       ))}
@@ -245,11 +364,13 @@ export default function Evaluation() {
             <button
               className="btn-primary"
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || timeLeft === 0}
               style={{ marginTop: "0.5rem" }}
             >
               {submitting
                 ? "Submitting..."
+                : timeLeft === 0
+                ? "Time's up – submitting..."
                 : `Submit ${testType === "pre" ? "Pre-test" : "Post-test"}`}
             </button>
           </div>
@@ -258,7 +379,13 @@ export default function Evaluation() {
             <h2 style={{ marginBottom: "0.75rem" }}>
               {result.test_type === "pre" ? "Pre-test" : "Post-test"} result
             </h2>
-            <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary)" }}>
+            <p
+              style={{
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: "var(--primary)",
+              }}
+            >
               Score: {result.knowledge_score ?? result.score}% (
               {result.correct_count}/{result.total_questions})
             </p>
@@ -267,13 +394,18 @@ export default function Evaluation() {
                 Average agreement: {result.attitude_score} / 5
               </p>
             )}
-            <p style={{ marginTop: "0.75rem", color: "var(--text-muted)" }}>{result.message}</p>
+            <p style={{ marginTop: "0.75rem", color: "var(--text-muted)" }}>
+              {result.message}
+            </p>
             <button
               className="btn-secondary"
               style={{ marginTop: "1.25rem" }}
               onClick={() => {
                 setResult(null);
                 setAnswers({});
+                hasSubmittedRef.current = false;
+                setStartTime(Date.now());
+                setTimeLeft(TIME_LIMIT_SECONDS);
               }}
             >
               Take another test
