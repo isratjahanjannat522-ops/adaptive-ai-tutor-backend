@@ -171,6 +171,6 @@ For academic use only.
 
 <div align="center">
 
-Made by **[Your Name]** · [Your University] · [Year]
+Made by **israt_obviously** · WUB · 2026
 
 </div>
